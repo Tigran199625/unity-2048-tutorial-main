@@ -62,7 +62,6 @@ public class TileBoard : MonoBehaviour
             Move(Vector2Int.right, grid.Width - 2, -1, 0, 1);
         } else if (Input.GetKeyDown(KeyCode.Z)) { // Undo key
             Undo();
-            Debug.Log("The key was pressed");
         }
 
     }
