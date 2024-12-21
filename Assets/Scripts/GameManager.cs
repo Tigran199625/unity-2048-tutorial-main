@@ -38,6 +38,9 @@ public class GameManager : MonoBehaviour
 
     public void NewGame()
     {
+        // Clear Board History
+        board.ClearBoardHistory();
+
         // Reset score
         SetScore(0);
         hiscoreText.text = LoadHiscore().ToString();
@@ -51,9 +54,6 @@ public class GameManager : MonoBehaviour
         board.CreateTile();
         board.CreateTile();
         board.enabled = true;
-
-        // Clear Board History
-        board.ClearBoardHistory();
 
     }
 

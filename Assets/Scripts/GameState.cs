@@ -9,7 +9,8 @@ public class GameState
 
     [System.Serializable]
     public class TileStateInfo {
-        public Vector2Int position; // Tile's position on the grid
+        public int tileId;
+        public Vector2Int savedposition; // Tile's position after move
         public int stateIndex; // Index of the tile state (e.g. "2", "4", etc.)
     }
 }
