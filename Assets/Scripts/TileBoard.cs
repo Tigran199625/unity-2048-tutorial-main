@@ -71,12 +71,12 @@ public class TileBoard : MonoBehaviour {
         } else if (Input.GetKeyDown(KeyCode.Z)) { // Undo key
             Undo();
         }
-
     }
+
     // Safety check, if same tile info, will be send for saving. Do not allow save same data twice
-    private bool IsTileAlreadySaved(int tileInstanceID, Vector2Int coordinates, int stateIndex) {
+    private bool IsTileAlreadySaved(int tileInstanceID, Vector2Int coordinates) {
         foreach (var tileData in movedTiles) {
-            if (tileData.coordinates == coordinates && tileData.stateIndex == stateIndex && tileData.tileId == tileInstanceID) {
+            if (tileData.tileId == tileInstanceID && tileData.coordinates == coordinates) {
                 return true;
             }
         }
@@ -103,7 +103,7 @@ public class TileBoard : MonoBehaviour {
         foreach (var tile in tiles) {
             beforeMoveState.tiles.Add(new GameState.TileStateInfo {
                 savedposition = tile.cell.coordinates,
-                stateIndex = IndexOf(tile.state), // Conver tile state to an index
+                stateIndex = IndexOf(tile.state), // Convert tile state to an index
                 tileId = tile.GetInstanceID()
             });
         }
@@ -118,14 +118,13 @@ public class TileBoard : MonoBehaviour {
         afterMoveState.score = GameManager.Instance.score;
         afterMoveState.tiles = new List<GameState.TileStateInfo>();
 
-        
+
         foreach (var tileData in movedTiles) {
             afterMoveState.tiles.Add(new GameState.TileStateInfo {
                 savedposition = tileData.coordinates,
-                stateIndex = tileData.stateIndex, // Conver tile state to an index
+                stateIndex = tileData.stateIndex, // Convert tile state to an index
                 tileId = tileData.tileId
             });
-            //Debug.Log("MOVED");
         }
 
         // In case some tiles dont move an don't merge, save them too.
@@ -133,11 +132,10 @@ public class TileBoard : MonoBehaviour {
             if (!tile.hasChanged) {
                 afterMoveState.tiles.Add(new GameState.TileStateInfo {
                     savedposition = tile.cell.coordinates,
-                    stateIndex = IndexOf(tile.state), // Conver tile state to an index
+                    stateIndex = IndexOf(tile.state), // Convert tile state to an index
                     tileId = tile.GetInstanceID()
                 });
             }
-            //Debug.Log("STAYED");
         }
 
         movedTiles.Clear();
@@ -164,6 +162,7 @@ public class TileBoard : MonoBehaviour {
         SaveAfterMoveState();
         movedTiles.Clear();
 
+        // Clean Stack(In case no tile is moved)
         if (NothingChanged()) {
             previousStates.Pop();
             nextStates.Pop();
@@ -176,7 +175,7 @@ public class TileBoard : MonoBehaviour {
 
     // In case no tile is moved. Don't need to save this situations in stack
     private bool NothingChanged() {
-        for(int i = 0; i < tiles.Count; i++) {
+        for (int i = 0; i < tiles.Count; i++) {
             if (tiles[i].hasChanged) {
                 return false;
             }
@@ -184,23 +183,25 @@ public class TileBoard : MonoBehaviour {
         return true;
     }
 
+    // Move undo method 
     private void Undo() {
 
         waiting = true;
 
         if (nextStates.Count == 0 || previousStates.Count == 0) {
             waiting = false;
+            //Debug.Log("One of states are empty");
             return; // No state to undo
+        }
+
+        // Case where we don't move yet. After game started.
+        if (nextStates.Peek().tiles.Count == 0) {
+            waiting = false;
+            return;
         }
 
         GameState previousState = previousStates.Pop();
         GameState nextState = nextStates.Pop();
-
-        // Case where we don't move yet. After game started.
-        if (nextState.tiles.Count == 0) {
-            waiting = false;
-            return;
-        }
 
         // Clear the board
         ClearBoard();
@@ -208,11 +209,43 @@ public class TileBoard : MonoBehaviour {
         // Restore the previous score
         GameManager.Instance.ReturnPreviousScore(previousState.score);
 
-        // Restore and move tiles
+        // Restore tiles that move, after undo
+        foreach (var previousTileState in previousState.tiles) {
+
+            // Find matching tile in nextState by tileId
+            var matchingTiles = nextState.tiles
+                .FirstOrDefault(t => t.tileId == previousTileState.tileId && t.savedposition != previousTileState.savedposition);
+
+            if (matchingTiles != null) {
+                Tile tile = Instantiate(tilePrefab, grid.transform);
+                tile.SetState(tileStates[previousTileState.stateIndex]);
+
+                // Restore tile's last position from nextState
+                TileCell nexTileCell = grid.GetCell(matchingTiles.savedposition.x, matchingTiles.savedposition.y);
+
+                // Set tile's previous position from previousState
+                TileCell previousTileCell = grid.GetCell(previousTileState.savedposition.x, previousTileState.savedposition.y);
+
+                // Spawn tile on position, not on tilecell.
+                tile.transform.position = nexTileCell.transform.position;
+
+                // Use logic special for undo animation
+                tile.UndoMoveTo(previousTileCell.transform.position);
+
+                // After animation is over, add tile to cell
+                tile.Spawn(previousTileCell);
+
+                tiles.Add(tile);
+
+            }
+
+        }
+
+        // Restore tiles that stay on the same position, after undo
         foreach (var previousTileState in previousState.tiles) {
             // Find matching tile in nextState by tileId
             var matchingTiles = nextState.tiles
-                .FirstOrDefault(t => t.tileId == previousTileState.tileId);
+                .FirstOrDefault(t => t.tileId == previousTileState.tileId && t.savedposition == previousTileState.savedposition);
 
             if (matchingTiles != null) {
                 Tile tile = Instantiate(tilePrefab, grid.transform);
@@ -226,7 +259,7 @@ public class TileBoard : MonoBehaviour {
 
                 tile.Spawn(nexTileCell);
 
-                tile.MoveTo(previousTileCell);
+                //tile.MoveTo(previousTileCell);
 
                 tiles.Add(tile);
 
@@ -262,11 +295,10 @@ public class TileBoard : MonoBehaviour {
         if (newCell != null) {
             tile.MoveTo(newCell);
             tile.hasChanged = true;
-            if (!IsTileAlreadySaved(tile.GetInstanceID(), tile.cell.coordinates, IndexOf(tile.state))) {
+            if (!IsTileAlreadySaved(tile.GetInstanceID(), tile.cell.coordinates)) {
                 movedTiles.Add(new SaveMovedTileInfo(tile.GetInstanceID(), tile.cell.coordinates, IndexOf(tile.state)));
-                //Debug.Log($"Saved tile <<zzzzzz>>: Coordinates {tile.cell.coordinates}, StartIndex {IndexOf(tile.state)}");
             } else {
-                //Debug.Log($"Tile already exists in tiles2");
+                Debug.Log($"Tile already exists in movedTiles");
             }
             return true;
         }
@@ -283,20 +315,16 @@ public class TileBoard : MonoBehaviour {
         a.hasChanged = true;
         b.hasChanged = true;
 
-        if (!IsTileAlreadySaved(a.GetInstanceID(), b.cell.coordinates, IndexOf(a.state))) {
-
+        if (!IsTileAlreadySaved(a.GetInstanceID(), b.cell.coordinates)) {
             movedTiles.Add(new SaveMovedTileInfo(a.GetInstanceID(), b.cell.coordinates, IndexOf(a.state)));
-            //Debug.Log($"Saved tile <<a>> to tiles2: Coordinates {b.cell.coordinates}, StartIndex {b.state}");
         } else {
-            //Debug.Log($"Tile already exists in tiles2");
+            Debug.Log($"Tile already exists in movedTiles");
         }
 
-        if (!IsTileAlreadySaved(GetInstanceID(), b.cell.coordinates, IndexOf(b.state))) {
-
+        if (!IsTileAlreadySaved(GetInstanceID(), b.cell.coordinates)) {
             movedTiles.Add(new SaveMovedTileInfo(b.GetInstanceID(), b.cell.coordinates, IndexOf(b.state)));
-            //Debug.Log($"Saved tile <<b>> to tiles2: Coordinates {b.cell.coordinates}, StartIndex {b.state}");
         } else {
-            //Debug.Log($"Tile already exists in tiles2");
+            Debug.Log($"Tile already exists in movedTiles");
         }
 
         tiles.Remove(a);
@@ -306,7 +334,6 @@ public class TileBoard : MonoBehaviour {
         TileState newState = tileStates[index];
 
         b.SetState(newState);
-        //Debug.Log("New merged tile name is: " + b.state);
         GameManager.Instance.IncreaseScore(newState.number);
 
     }

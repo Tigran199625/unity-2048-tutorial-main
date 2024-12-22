@@ -1,6 +1,5 @@
 using System.Collections;
 using TMPro;
-using TreeEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -54,6 +53,10 @@ public class Tile : MonoBehaviour
         StartCoroutine(Animate(cell.transform.position, false));
     }
 
+    public void UndoMoveTo(Vector3 finalDestination) {
+        StartCoroutine(AnimateUndo(finalDestination));
+    }
+
     public void Merge(TileCell cell)
     {
         if (this.cell != null) {
@@ -85,6 +88,22 @@ public class Tile : MonoBehaviour
         if (merging) {
             Destroy(gameObject);
         }
+    }
+
+    private IEnumerator AnimateUndo(Vector3 to) {
+
+        float elapsed = 0f;
+        float duration = 0.1f;
+
+        Vector3 from = transform.position;
+
+        while (elapsed < duration) {
+            transform.position = Vector3.Lerp(from, to, elapsed / duration);
+            elapsed += Time.deltaTime;
+            yield return null;
+        }
+
+        transform.position = to;
     }
 
 }
