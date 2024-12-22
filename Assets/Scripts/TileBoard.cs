@@ -251,15 +251,10 @@ public class TileBoard : MonoBehaviour {
                 Tile tile = Instantiate(tilePrefab, grid.transform);
                 tile.SetState(tileStates[previousTileState.stateIndex]);
 
-                // Restore tile's last position from nextState
-                TileCell nexTileCell = grid.GetCell(matchingTiles.savedposition.x, matchingTiles.savedposition.y);
-
                 // Set tile's previous position from previousState
                 TileCell previousTileCell = grid.GetCell(previousTileState.savedposition.x, previousTileState.savedposition.y);
 
-                tile.Spawn(nexTileCell);
-
-                //tile.MoveTo(previousTileCell);
+                tile.Spawn(previousTileCell);
 
                 tiles.Add(tile);
 
